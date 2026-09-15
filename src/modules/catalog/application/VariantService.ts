@@ -129,6 +129,8 @@ export class VariantService {
     }
     await this.refreshMinPrice(productId);
     await this.cache.invalidate(`product:*`);
+    await this.cache.invalidate(`search:*`);
+    await this.cache.invalidate(`suggest:*`);
     audit(this.logger, 'VARIANT_CREATED', actor, variant.id, correlationId);
     await this.emit(
       'catalog.variantCreated',
@@ -179,6 +181,8 @@ export class VariantService {
     await this.variants.update(id, updates);
     await this.refreshMinPrice(variant.productId);
     await this.cache.invalidate(`product:*`);
+    await this.cache.invalidate(`search:*`);
+    await this.cache.invalidate(`suggest:*`);
     audit(this.logger, 'VARIANT_UPDATED', actor, id, correlationId);
     await this.emit(
       'catalog.variantUpdated',
@@ -213,6 +217,8 @@ export class VariantService {
     await this.variants.remove(id);
     await this.refreshMinPrice(variant.productId);
     await this.cache.invalidate(`product:*`);
+    await this.cache.invalidate(`search:*`);
+    await this.cache.invalidate(`suggest:*`);
     audit(this.logger, 'VARIANT_DELETED', actor, id, correlationId);
     await this.emit(
       'catalog.variantUpdated',

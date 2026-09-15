@@ -179,3 +179,34 @@ export const validateCategorySlugParam = validateParams(categorySlugParamSchema)
 export const validateCreateBrand = validateBody(createBrandSchema);
 export const validateUpdateBrand = validateBody(updateBrandSchema);
 export const validateUploadUrl = validateBody(uploadUrlSchema);
+
+export const searchProductsQuerySchema = z
+  .object({
+    q: z.string().trim().max(100).optional(),
+    query: z.string().trim().max(100).optional(),
+    category: z.string().trim().max(120).optional(),
+    categoryId: z.string().trim().max(120).optional(),
+    brand: z.string().trim().max(120).optional(),
+    brandId: z.string().trim().max(120).optional(),
+    attributes: z.union([z.string(), z.array(z.string())]).optional(),
+    minPrice: z
+      .string()
+      .regex(/^\d+(\.\d{1,2})?$/)
+      .optional(),
+    maxPrice: z
+      .string()
+      .regex(/^\d+(\.\d{1,2})?$/)
+      .optional(),
+    availability: z.enum(['in_stock', 'out_of_stock', 'unknown']).optional(),
+    sort: z.enum(['relevance', 'price_asc', 'price_desc', 'newest', 'name_asc']).optional(),
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+    cursor: z.string().max(500).optional(),
+  })
+  .strict();
+
+export const searchSuggestionsQuerySchema = z
+  .object({
+    q: z.string().trim().min(1).max(100),
+    limit: z.coerce.number().int().min(1).max(10).optional(),
+  })
+  .strict();

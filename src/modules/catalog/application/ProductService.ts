@@ -267,6 +267,8 @@ export class ProductService {
 
     await this.products.update(id, updates);
     await this.cache.invalidate(`product:*`);
+    await this.cache.invalidate(`search:*`);
+    await this.cache.invalidate(`suggest:*`);
     audit(this.logger, 'PRODUCT_UPDATED', actor, id, correlationId);
     await this.emit(
       'catalog.productUpdated',
@@ -302,6 +304,8 @@ export class ProductService {
     }
     await this.products.updateStatus(id, 'published', product.version + 1);
     await this.cache.invalidate(`product:*`);
+    await this.cache.invalidate(`search:*`);
+    await this.cache.invalidate(`suggest:*`);
     audit(this.logger, 'PRODUCT_PUBLISHED', actor, id, correlationId);
     await this.emit('catalog.productPublished', 'product', id, { productId: id }, correlationId);
     await this.emit('search.indexUpdated', 'product', id, { productId: id }, correlationId);
@@ -318,6 +322,8 @@ export class ProductService {
     }
     await this.products.updateStatus(id, 'draft', product.version + 1);
     await this.cache.invalidate(`product:*`);
+    await this.cache.invalidate(`search:*`);
+    await this.cache.invalidate(`suggest:*`);
     audit(this.logger, 'PRODUCT_UNPUBLISHED', actor, id, correlationId);
     await this.emit('catalog.productUnpublished', 'product', id, { productId: id }, correlationId);
     await this.emit('search.indexRemoved', 'product', id, { productId: id }, correlationId);
@@ -339,6 +345,8 @@ export class ProductService {
     };
     await this.products.update(id, updates);
     await this.cache.invalidate(`product:*`);
+    await this.cache.invalidate(`search:*`);
+    await this.cache.invalidate(`suggest:*`);
     audit(this.logger, 'PRODUCT_ARCHIVED', actor, id, correlationId);
     await this.emit(
       'catalog.productUpdated',

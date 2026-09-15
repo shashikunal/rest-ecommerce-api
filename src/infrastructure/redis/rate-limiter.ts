@@ -226,6 +226,22 @@ export function buildDefaultPolicies(): RateLimitPolicy[] {
       failClosed: true,
     },
     {
+      scope: 'SEARCH_SUGGESTIONS',
+      identifier: 'ip',
+      limit: 120,
+      windowMs: 60000,
+      keyPrefix: 'rl:search_sug',
+      match: { method: 'GET', pathPrefix: '/api/v1/products/suggestions' },
+    },
+    {
+      scope: 'SEARCH',
+      identifier: 'ip',
+      limit: 60,
+      windowMs: 60000,
+      keyPrefix: 'rl:search',
+      match: { method: 'GET', pathPrefix: '/api/v1/products/search' },
+    },
+    {
       scope: 'CATALOG_READ',
       identifier: 'ip',
       limit: 60,

@@ -388,6 +388,7 @@ export class FakeOutboxRepository implements OutboxRepository {
 
 export class FakeCatalogCache implements CatalogCache {
   readonly store = new Map<string, string>();
+  readonly invalidations: string[] = [];
 
   async get<T>(key: string): Promise<T | null> {
     const raw = this.store.get(key);
@@ -399,6 +400,7 @@ export class FakeCatalogCache implements CatalogCache {
   }
 
   async invalidate(pattern: string): Promise<void> {
+    this.invalidations.push(pattern);
     const prefix = pattern.replace(/\*$/, '');
     for (const key of [...this.store.keys()]) {
       if (key.startsWith(prefix)) this.store.delete(key);

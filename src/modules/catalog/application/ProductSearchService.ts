@@ -101,4 +101,10 @@ export class ProductSearchService {
     });
     return { suggestions, metadata: { query, cached: false, provider: this.provider.name } };
   }
+
+  async invalidateCache(): Promise<void> {
+    await this.cache.invalidate('search:*');
+    await this.cache.invalidate('suggest:*');
+    this.logger.info('Product search and suggestion cache invalidated');
+  }
 }

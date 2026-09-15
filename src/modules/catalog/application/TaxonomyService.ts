@@ -101,6 +101,8 @@ export class TaxonomyService {
     };
     await this.categories.create(category);
     await this.cache.invalidate('categories:*');
+    await this.cache.invalidate('search:*');
+    await this.cache.invalidate('suggest:*');
     audit(this.logger, 'CATEGORY_CREATED', actor, 'category', category.id, correlationId);
     return category;
   }
@@ -123,6 +125,8 @@ export class TaxonomyService {
     }
     await this.categories.update(id, updates);
     await this.cache.invalidate('categories:*');
+    await this.cache.invalidate('search:*');
+    await this.cache.invalidate('suggest:*');
     audit(this.logger, 'CATEGORY_UPDATED', actor, 'category', id, correlationId);
     const updated = await this.categories.findById(id);
     if (!updated) throw new CategoryNotFoundError('Category not found', correlationId);
@@ -151,6 +155,8 @@ export class TaxonomyService {
       deletedAt: new Date(),
     } as Partial<Category>);
     await this.cache.invalidate('categories:*');
+    await this.cache.invalidate('search:*');
+    await this.cache.invalidate('suggest:*');
     audit(this.logger, 'CATEGORY_ARCHIVED', actor, 'category', id, correlationId);
     const updated = await this.categories.findById(id);
     if (!updated) throw new CategoryNotFoundError('Category not found', correlationId);
@@ -216,6 +222,8 @@ export class TaxonomyService {
     };
     await this.brands.create(brand);
     await this.cache.invalidate('brands:*');
+    await this.cache.invalidate('search:*');
+    await this.cache.invalidate('suggest:*');
     audit(this.logger, 'BRAND_CREATED', actor, 'brand', brand.id, correlationId);
     return brand;
   }
@@ -236,6 +244,8 @@ export class TaxonomyService {
     if (input.logo !== undefined) (updates as { logo?: Brand['logo'] }).logo = input.logo;
     await this.brands.update(id, updates);
     await this.cache.invalidate('brands:*');
+    await this.cache.invalidate('search:*');
+    await this.cache.invalidate('suggest:*');
     audit(this.logger, 'BRAND_UPDATED', actor, 'brand', id, correlationId);
     const updated = await this.brands.findById(id);
     if (!updated) throw new BrandNotFoundError('Brand not found', correlationId);
@@ -257,6 +267,8 @@ export class TaxonomyService {
       deletedAt: new Date(),
     } as Partial<Brand>);
     await this.cache.invalidate('brands:*');
+    await this.cache.invalidate('search:*');
+    await this.cache.invalidate('suggest:*');
     audit(this.logger, 'BRAND_ARCHIVED', actor, 'brand', id, correlationId);
     const updated = await this.brands.findById(id);
     if (!updated) throw new BrandNotFoundError('Brand not found', correlationId);

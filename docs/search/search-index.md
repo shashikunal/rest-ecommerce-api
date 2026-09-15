@@ -1,3 +1,40 @@
-﻿# search-index
+# Search Index Document Projection
 
-See overview.md for diagrams. Phase 12 decisions: MongoDB catalog is authoritative; ProductSearchProvider abstracts the read path; inputs are Zod/service validated; only published products with active category/brand metadata are public; Redis cache is best-effort 60s TTL; cursors are opaque signed and sort-bound; total counts are not computed; future event-driven indexing uses catalog outbox/Kafka with idempotent, version-aware consumers and rebuildable projections.
+## 1. Projected Search Document Model
+
+The derived document projection represents a denormalized, read-optimized view of a catalog product:
+
+```typescript
+export interface SearchProductDocument {
+  productId: string;
+  slug: string;
+  title: string;
+  description: string;
+  shortDescription?: string;
+  brand: { id: string; name: string; slug: string } | null;
+  category: { id: string; name: string; slug: string } | null;
+  searchableAttributes: Record<string, string>;
+  variants: Array<{
+    sku: string;
+    attrs: Record<string, string>;
+    price: { minor: number; currency: string };
+    availability: 'IN_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
+  }>;
+  catalogPrice?: { minor: number; currency: string };
+  media: MediaRef[];
+  status: 'published';
+  createdAt: Date;
+  updatedAt: Date;
+  score?: number;
+}
+```
+
+---
+
+## 2. Information Hiding & Security Boundary
+The search document projection strictly omits:
+- Internal database audit metadata (e.g. `__v`, internal MongoDB `_id`).
+- Cost of goods sold (COGS) and supplier data.
+- Inventory warehouse locations and supplier replenishment flags.
+- Private pricing rules and customer-specific discounts.
+- Soft-deleted timestamps and draft versions.
