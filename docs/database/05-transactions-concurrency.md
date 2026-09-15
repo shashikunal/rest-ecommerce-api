@@ -1,0 +1,6 @@
+# 05 Transactions + Atomic Ops + Optimistic Concurrency + State Consistency + Embed/Ref
+
+Tx (only where cross-doc atomicity required; retry transient errors ≤3 with backoff; 60s max): T1 checkout {inventory cond-dec, reservations insert, coupons usage-inc, orders insert, outbox insert}; T2 pay-confirm {payments update, orders→PAID, outbox}; T3 refund {refunds insert, orders→REFUND-path, payments update, outbox}; T4 RMA-refund link; T5 refresh-rotate {sessions update+insert}. Everything else single-doc atomic.
+Atomic-not-tx: reserve `updateOne({skuId,available:{$gte:q},version:v},{$inc:{available:-q,reserved:+q,version:+1}})`; coupon `usedGlobal<cap` inc; cart merge `$set` with version check; status `update where status+version expected`.
+Versioning: `version int` on inventory/orders/payments/carts/coupons/refunds/returns; write requires `expectedVersion`; conflict →409 + client refetch (no blind retry on money). State→field: order.status, payment.status, reservation.status, return.state, refund.status; transitions validated in domain before write (invalid →409, never partial).
+Embed/Ref: Order→Items EMBED (snapshot history); User→Orders REF (lifecycle); Product→Variants SPLIT collections (size/query independence); Cart→Lines EMBED (owned, capped); User→Addresses REF (history via order snapshots); Variant→Inventory REF (hot-write isolation).

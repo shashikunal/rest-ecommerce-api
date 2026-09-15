@@ -1,0 +1,12 @@
+export { createApp } from './app';
+export type { AppDependencies } from './app';
+export { startServer } from '../server';
+export { validateEnv } from '../config/env';
+export { createLogger } from '../config/logger';
+export { connectDatabase, closeDatabase } from '../config/database';
+export { connectRedis, closeRedis } from '../config/redis';
+export { createKafkaClient, closeKafka } from '../config/kafka';
+export { createRateLimiter } from '../infrastructure/redis/rate-limiter';
+export { generateOpenApiSpec } from '../docs/openapi/generator';
+export { initializeObservability } from '../infrastructure/observability/metrics';
+export { APP_NAME, APP_VERSION, API_PREFIX, API_VERSION } from '../shared/constants/index';

@@ -1,0 +1,6 @@
+# Messaging LLD (Kafka + outbox + inbox; canonical envelope)
+
+Envelope: `{eventId uuid, eventType 'order.created', eventVersion 1, occurredAt, producer 'order-svc', aggregateType 'order', aggregateId, correlationId, causationId, payload, metadata}`. Naming `{domain}.{past-tense}`; additive-only evolution; consumers ignore unknown fields; version bump on breaking → dual-publish window.
+Topics: `order.events, payment.events, inventory.events, notification.events, user.events, analytics.events` (+`.DLQ` each). Producer per owning module; groups: notify/analytics/audit/inv-projector; key=aggregateId (3 partitions start); ordering per-aggregate only; retry exp+jitter 3–5 →DLQ+quarantine; replay via 7d retention (handlers idempotent).
+Outbox record: `{_id, aggregateType/Id, eventType/Version, payload, status PENDING/SENT/FAILED, attempts, nextRetryAt, createdAt}` written in SAME tx as business data; publisher (external worker, poll 5s + claim via `findOneAndUpdate(status,CLAIMED)`) publishes → SENT (at-least-once; dup expected → inbox handles).
+Inbox: `{eventId unique, consumerId, status RECEIVED/PROCESSED/FAILED, attempts, processedAt}`; flow receive→check inbox→skip-if-PROCESSED→process→persist-result+mark-PROCESSED in one tx→ack. Crash before mark → redeliver → safe re-run. Cleanup PROCESSED>30d.

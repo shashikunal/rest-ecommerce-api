@@ -1,0 +1,5 @@
+# 05 Rate Limiting + Auth + OTP (detailed)
+
+Limits (Redis sliding-window; token-bucket burst search): global 200/m/IP; register 10/h/IP; login 5/15m IP+acct; OTP req 4/10m/contact; OTP verify 5/OTP; reset 3/15m/acct; search 60/m burst10; cart 60/m; checkout 10/m; pay 5/m; admin 60/m; upload 10/h; webhook 100/m+sig. Keys `rl:{scope}:{id}:{route}`. 429 + `Retry-After` + `RateLimit-*`. Redis down: fail-closed auth/pay/checkout/webhook (503+alert), fail-open+alert low-risk reads. Monitor 429-rate, auth-fail spikes.
+Auth sequences: register→hash→OTP(verify)→active; login→throttle→session+family→tokens; refresh→rotate→reuse?revoke-family+alert; logout(-all)→denylist; reset→OTP→change→revoke-others; session list/revoke. Access 15m, refresh rotate, httpOnly/secure, generic errors.
+OTP pipeline: crypto 6d → SHA256 → Redis `otp:{purpose}:{hash}` 5–10m → send async → verify (≤5 tries) → single-use invalidate; resend ≤3 + 60s cooldown; purposes isolated (EMAIL_VERIFICATION/LOGIN/PASSWORD_RESET/PHONE_VERIFICATION); abuse monitor.

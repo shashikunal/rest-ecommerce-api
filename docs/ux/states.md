@@ -1,0 +1,7 @@
+# States: Loading/Empty/Error/429/Conflict/Session + Matrices
+
+Patterns: full-page skeleton (home/detail), section skeleton (cards/tables), button spinner + disabled, form inline errors (aria-describedby), checkout-step error panel + retry. Spinners only for <1s waits; skeletons above.
+Empty (all with CTA): cart → browse · wishlist → discover · orders → shop · notifications → "You're caught up" · search → tips · reviews → be-first · admin queues → "All clear".
+Errors (user-safe strings, corrId in "Details" expander for support): validation inline · 401 login-wall (return-to preserved) · 403 permission wall · 404 branded not-found · 409 conflict ("Changed elsewhere — review latest", with diff + reload) · timeout/offline banner (form preserved, retry; checkout-timeout → check-Orders-first) · 5xx full-page + retry + support link. No stack/DB/vendor text.
+429: "Too many attempts — retry in {Retry-After}" countdown, no auto-retry spam; forms keep input. Session: silent refresh → fail → login modal (draft kept) → revoked → banner.
+Screen-state matrix (L/E/Er/U/C/S defined per screen in customer/checkout/auth/admin; all major screens covered: L✓ E✓ Er✓ U✓ C✓ S✓). Responsive matrix: mobile (bottom nav + sheets, 1-col, tables→cards, sticky CTA) · tablet (2-col, collapsible sidebar) · desktop (3-col/sidebar filters, data tables, hover-actions + focus-visible equivalents). Tables: horizontal-scroll container with sticky first col + `aria-label`s; touch targets ≥44px.

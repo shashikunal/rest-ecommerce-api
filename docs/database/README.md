@@ -1,0 +1,3 @@
+# Database Design Index (Phase 4)
+
+Order: 01-catalog (map + per-collection ops profile) → 02-schemas-core → 03-schemas-commerce → 04-indexes-queries (index catalog + pagination) → 05-transactions-concurrency (tx set + atomic + versioning + embed/ref) → 06-lifecycle-security (retention + classification + Atlas + DR) → 07-scale-ops (growth + hotspots + perf + failures + consistency table) → 08-diagrams-migrations (ER + sequences + model map + rollout + seeds) → 09-interview-antipatterns. Prior `design.md` retained as Phase 0 summary; these files are the authoritative implementation-ready design. Atlas sole primary; no Supabase/PG; Redis ephemeral; Kafka transit.

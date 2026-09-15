@@ -1,0 +1,15 @@
+# ARCHITECTURE_DECISIONS (summary — details in docs/adr/)
+- ADR-001 MongoDB Atlas over Supabase/PG: document catalog/variants/attrs, flexible schema, Atlas scale/search/tx, single primary DB, Vercel-friendly, learning goal. PG would win for heavy relational/ledger joins — not our case.
+- ADR-002 Modular monolith (not microservices): single Vercel deploy, Mongo tx across domains, no ops overhead; module boundaries (route→middleware→controller→service→domain→repo→mongo) allow later extraction.
+- ADR-003 Vercel-first: stateless handlers, connection reuse, external Redis/Kafka/mail/storage/search; no in-process consumers/disks.
+- ADR-004 Redis ephemeral: limits/OTP/cache/idempotency/locks only.
+- ADR-005 External Kafka: durable async only where justified (order/payment/inventory/notify/audit/analytics); outbox+inbox+DLQ; local Docker, prod managed.
+- ADR-006 JWT short access (15m) + rotating refresh (httpOnly secure, reuse detection, denylist/revocation).
+- ADR-007 Hashed OTP, 5-10m TTL, purpose-separated, attempt+resend limits in Redis.
+- ADR-008 Redis sliding-window limits per IP/user/account/endpoint; fail-closed on auth/pay, fail-open w/ alert on low-risk read; 429+Retry-After.
+- ADR-009 Outbox only for cross-domain async (order/payment/notify); not for trivial CRUD.
+- ADR-010 Idempotency keys (Redis short + Mongo persisted for pay/refund/order) with request-hash replay.
+- ADR-011 Atlas text → OpenSearch path only when facets/ranking/scale demand.
+- ADR-012 S3-compatible + CDN for media, never blobs in Mongo.
+- ADR-013 OTel JSON logs/metrics/traces + correlationId.
+- ADR-014 Unit→integ→contract→e2e→sec→k6; Supertest, threshold gates in CI.

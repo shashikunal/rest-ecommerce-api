@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Docker
+docker-compose.override.yml
+
+# Temporary
+*.pid
+*.seed
+*.pid.lock
+
+# Cache
+.cache/
+.eslintcache
+.prettiercache
+
+# Vercel
+.vercel/
+
+# Secrets
+*.pem
+*.key
+*.secret

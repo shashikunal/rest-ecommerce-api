@@ -1,0 +1,7 @@
+# 08 Ops (threat model + reliability + failure matrix + observability + DR + Vercel + trade-offs)
+
+Threats (Impact/Likelihood → Prevent/Detect/Respond): stuffing/brute (H/M → throttle+generic/auth-spike alert→lock), OTP abuse (M/M → limits+cooldown→abuse alert→block), JWT/session theft (H/M → short TTL+rotation+revoke→reuse alert→revoke-family), NoSQLi/XSS/CSRF (H/L → Zod/CSP/SameSite→WAF→patch), webhook spoof/replay (H/L → HMAC+window+idem→sig-fail alert→rotate secret), price/coupon abuse (H/M → server-price+atomic→anomaly alert→void), inv/pay races (H/M → cond-inc+idem→mismatch alert→reconcile), scrape/DDoS (M/H → limits+CDN→429 alert→WAF rule), admin escalation (H/L → RBAC+resource-authz+audit→audit alert→revoke).
+Reliability: timeouts 5/3/10s; retries idempotent-only exp+jitter; breakers gateway/mail/search; bulkhead workers; degrade non-money (recommendations/cache-reads/delayed mail) never money.
+Failure matrix: Atlas→503+PITR; Redis→closed-auth/open-read+rebuild; Kafka→degrade+replay; gateway/mail/ship/S3→queue+reconcile; workers→scale+DLQ. All page/warn per severity.
+Obs: JSON logs, metrics (rps/err/p50-99/DB/Redis/lag/consumer/checkout/pay/OTP/auth/429), OTel trace propagation. DR: RPO≤5m RTO≤30m assumptions; PITR+replay+rollback drills.
+Vercel: handlers short+stateless+reuse; consumers/sweepers/cron external. Trade-offs: limits vs UX; freshness vs perf; consistency vs throughput; sync vs async; checks vs latency — decisions per doc (tuned limits, minimal tx, short TTL, Kafka only cross-domain).

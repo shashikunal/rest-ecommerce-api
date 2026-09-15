@@ -1,0 +1,8 @@
+# 07 Scale + Hotspots + Search/Analytics + Performance + Failures + Consistency
+
+Scale: 10x (M30, compound indexes hold, outbox poll+partitions ×3); 100x (hot inventory sharding by skuId hash, orders by userId, read-preference secondaries for catalog, OpenSearch extract, audit cold-archive); 1000x (ledger split, pay/inv services, CQRS read models). No premature sharding.
+Hotspots → mitigation: inventory sku doc (cond-inc is single-doc, no tx span; reserve rows per order spread writes); carts (per-user docs, no global); orders (user-scoped index; status index for ops queues); outbox claim (partial index + CLAIMED lease to avoid double-publish); audit (time-series insert-only, no updates).
+Search: Atlas source of truth → events project to engine; never query engine for money. Analytics: transactional DB answers ops queries only; warehouse via Kafka `analytics.events` (never unbounded aggregations on Atlas).
+Perf: project only needed fields; covered queries on catalog lists; bulkWrite for seed/backfill; 5s query maxTimeMS + timeout surfaced 503; pool sized for serverless (global client, maxPool ~10); docs ≤16MB with caps (cart 50 lines, media ≤10, order items ≤100).
+Failures: unavailable→503+corrId+alert; failover→transient retry ≤3 then 503 "processing"; dup-key→409/422 (not 500); tx-conflict→retry; pool-exhaust→503+scale alert; slow-query→log+index review; stale-read→version check surfaces 409.
+Consistency: strong = inventory, payments, orders, coupon usage, sessions; moderate = cart; eventual = catalog reads, search, notifications, analytics. Why: money/inv correctness needs linearizable single-doc/tx; catalog tolerates seconds-stale via TTL cache.
