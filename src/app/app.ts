@@ -33,11 +33,26 @@ export interface AppDependencies {
   userRoutes?: Router;
   sessionRoutes?: Router;
   catalogRoutes?: Router;
+  cartRoutes?: Router;
+  wishlistRoutes?: Router;
+  inventoryRoutes?: Router;
+  checkoutRoutes?: Router;
 }
 
 export function createApp(deps: AppDependencies): Express {
-  const { config, logger, rateLimiter, authRoutes, userRoutes, sessionRoutes, catalogRoutes } =
-    deps;
+  const {
+    config,
+    logger,
+    rateLimiter,
+    authRoutes,
+    userRoutes,
+    sessionRoutes,
+    catalogRoutes,
+    cartRoutes,
+    wishlistRoutes,
+    inventoryRoutes,
+    checkoutRoutes,
+  } = deps;
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -88,6 +103,18 @@ export function createApp(deps: AppDependencies): Express {
   }
   if (catalogRoutes) {
     app.use(API_PREFIX, catalogRoutes);
+  }
+  if (cartRoutes) {
+    app.use(API_PREFIX, cartRoutes);
+  }
+  if (wishlistRoutes) {
+    app.use(API_PREFIX, wishlistRoutes);
+  }
+  if (inventoryRoutes) {
+    app.use(API_PREFIX, inventoryRoutes);
+  }
+  if (checkoutRoutes) {
+    app.use(API_PREFIX, checkoutRoutes);
   }
 
   app.use((req: AppRequest, _res: Response, next: NextFunction) => {

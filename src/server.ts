@@ -11,7 +11,11 @@ import { createLogger } from './config/logger';
 import type { Logger } from './config/logger';
 import { connectRedis, closeRedis } from './config/redis';
 import { initializeObservability } from './infrastructure/observability/metrics';
+import type { MetricsCollector } from './infrastructure/observability/metrics';
 import { createRateLimiter } from './infrastructure/redis/rate-limiter';
+import type { CartService } from './modules/cart/application/CartService';
+import type { InventoryService } from './modules/inventory/application/InventoryService';
+import type { UserService } from './modules/users/application/UserService';
 
 let serverInstance: Server | null = null;
 let isShuttingDown = false;
@@ -24,7 +28,7 @@ export async function startServer(): Promise<{
 }> {
   const config = validateEnv();
   const logger = createLogger(config);
-  initializeObservability(config, logger);
+  const { metrics } = initializeObservability(config, logger);
   await connectDatabase(config, logger);
   await connectRedis(config, logger);
   try {
@@ -35,10 +39,16 @@ export async function startServer(): Promise<{
     });
   }
   const rateLimiter = createRateLimiter(logger, config);
-  const { authRoutes, userRoutes, sessionRoutes, catalogRoutes } = await loadOptionalModuleRoutes(
-    config,
-    logger,
-  );
+  const {
+    authRoutes,
+    userRoutes,
+    sessionRoutes,
+    catalogRoutes,
+    cartRoutes,
+    wishlistRoutes,
+    inventoryRoutes,
+    checkoutRoutes,
+  } = await loadOptionalModuleRoutes(config, logger, metrics);
   const app = createApp({
     config,
     logger,
@@ -47,6 +57,10 @@ export async function startServer(): Promise<{
     userRoutes,
     sessionRoutes,
     catalogRoutes,
+    cartRoutes,
+    wishlistRoutes,
+    inventoryRoutes,
+    checkoutRoutes,
   });
   const PORT = config.PORT;
   const server: Server = await new Promise((resolve, reject) => {
@@ -66,11 +80,16 @@ export async function startServer(): Promise<{
 async function loadOptionalModuleRoutes(
   _config: EnvConfig,
   logger: Logger,
+  metrics?: MetricsCollector,
 ): Promise<{
   authRoutes?: Router;
   userRoutes?: Router;
   sessionRoutes?: Router;
   catalogRoutes?: Router;
+  cartRoutes?: Router;
+  wishlistRoutes?: Router;
+  inventoryRoutes?: Router;
+  checkoutRoutes?: Router;
 }> {
   try {
     const { createAuthDependencies } = await import('./modules/auth/factory');
@@ -85,11 +104,20 @@ async function loadOptionalModuleRoutes(
       authMiddleware: authDeps.authMiddleware as unknown as RequestHandler,
     };
     let userRoutes: Router | undefined;
+    let userService: UserService | undefined;
     let sessionRoutes: Router | undefined;
     let catalogRoutes: Router | undefined;
+    let cartRoutes: Router | undefined;
+    let cartService: CartService | undefined;
+    let wishlistRoutes: Router | undefined;
+    let inventoryRoutes: Router | undefined;
+    let inventoryService: InventoryService | undefined;
+    let checkoutRoutes: Router | undefined;
     try {
       const { createUsersDependencies } = await import('./modules/users/factory');
-      userRoutes = createUsersDependencies(shared).userRoutes;
+      const usersDeps = createUsersDependencies(shared);
+      userRoutes = usersDeps.userRoutes;
+      userService = usersDeps.userService;
     } catch (error) {
       logger.warn('Users module unavailable', { error: (error as Error).message });
     }
@@ -101,15 +129,105 @@ async function loadOptionalModuleRoutes(
     }
     try {
       const { createCatalogDependencies } = await import('./modules/catalog/factory');
-      catalogRoutes = createCatalogDependencies({
-        logger,
-        authMiddleware: shared.authMiddleware,
-        config: _config,
-      }).catalogRoutes;
+      const { MongoProductRepository } =
+        await import('./modules/catalog/infrastructure/database/product.repository');
+      const { MongoVariantRepository } =
+        await import('./modules/catalog/infrastructure/database/variant.repository');
+      const productRepository = new MongoProductRepository(logger);
+      const variantRepository = new MongoVariantRepository(logger);
+      try {
+        const { createInventoryDependencies } = await import('./modules/inventory/factory');
+        const inventoryDeps = createInventoryDependencies({
+          logger,
+          config: _config,
+          authMiddleware: shared.authMiddleware,
+          metrics,
+          productRepository,
+          variantRepository,
+        });
+        inventoryRoutes = inventoryDeps.inventoryRoutes;
+        inventoryService = inventoryDeps.inventoryService;
+        const catalogDeps = createCatalogDependencies({
+          logger,
+          authMiddleware: shared.authMiddleware,
+          config: _config,
+          inventoryLookup: inventoryDeps.inventoryLookup,
+        });
+        catalogRoutes = catalogDeps.catalogRoutes;
+      } catch (error) {
+        logger.warn('Inventory module unavailable', { error: (error as Error).message });
+        const catalogDeps = createCatalogDependencies({
+          logger,
+          authMiddleware: shared.authMiddleware,
+          config: _config,
+        });
+        catalogRoutes = catalogDeps.catalogRoutes;
+      }
+      try {
+        const { createCartDependencies } = await import('./modules/cart/factory');
+        const { MongoProductRepository } =
+          await import('./modules/catalog/infrastructure/database/product.repository');
+        const { MongoVariantRepository } =
+          await import('./modules/catalog/infrastructure/database/variant.repository');
+        const cartDeps = createCartDependencies({
+          logger,
+          config: _config,
+          authMiddleware: shared.authMiddleware,
+          productRepository: new MongoProductRepository(logger),
+          variantRepository: new MongoVariantRepository(logger),
+        });
+        cartRoutes = cartDeps.cartRoutes;
+        cartService = cartDeps.cartService;
+      } catch (error) {
+        logger.warn('Cart module unavailable', { error: (error as Error).message });
+      }
+      try {
+        const { createWishlistDependencies } = await import('./modules/wishlist/factory');
+        const { MongoProductRepository } =
+          await import('./modules/catalog/infrastructure/database/product.repository');
+        const { MongoVariantRepository } =
+          await import('./modules/catalog/infrastructure/database/variant.repository');
+        wishlistRoutes = createWishlistDependencies({
+          logger,
+          authMiddleware: shared.authMiddleware,
+          productRepository: new MongoProductRepository(logger),
+          variantRepository: new MongoVariantRepository(logger),
+        }).wishlistRoutes;
+      } catch (error) {
+        logger.warn('Wishlist module unavailable', { error: (error as Error).message });
+      }
+      try {
+        if (!cartService || !inventoryService || !userService) {
+          throw new Error('Checkout dependencies unavailable (cart/inventory/users)');
+        }
+        const { createCheckoutDependencies } = await import('./modules/checkout/factory');
+        checkoutRoutes = createCheckoutDependencies({
+          logger,
+          config: _config,
+          authMiddleware: shared.authMiddleware,
+          metrics,
+          cartService,
+          inventoryService,
+          userService,
+          productRepository,
+          variantRepository,
+        }).checkoutRoutes;
+      } catch (error) {
+        logger.warn('Checkout module unavailable', { error: (error as Error).message });
+      }
     } catch (error) {
       logger.warn('Catalog module unavailable', { error: (error as Error).message });
     }
-    return { authRoutes: authDeps.authRoutes, userRoutes, sessionRoutes, catalogRoutes };
+    return {
+      authRoutes: authDeps.authRoutes,
+      userRoutes,
+      sessionRoutes,
+      catalogRoutes,
+      cartRoutes,
+      wishlistRoutes,
+      inventoryRoutes,
+      checkoutRoutes,
+    };
   } catch {
     return {};
   }

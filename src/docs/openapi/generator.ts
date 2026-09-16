@@ -446,6 +446,549 @@ export function generateOpenApiSpec(config: EnvConfig): OpenAPISpec {
           },
         },
       },
+      '/api/v1/cart': {
+        get: {
+          tags: ['Cart'],
+          summary: 'Get current cart (display snapshots, stale-price flags)',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/CorrelationIdHeader' }],
+          responses: {
+            '200': {
+              description: 'Cart view',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/CartView' },
+                },
+              },
+            },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '429': { $ref: '#/components/responses/RateLimited' },
+          },
+        },
+        delete: {
+          tags: ['Cart'],
+          summary: 'Clear cart (empties items, preserves identity)',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+          responses: {
+            '200': { description: 'Cart cleared' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '409': { description: 'Version conflict or idempotency conflict' },
+          },
+        },
+      },
+      '/api/v1/cart/items': {
+        post: {
+          tags: ['Cart'],
+          summary: 'Add item by sku (or productId/variantId); duplicates merge quantities',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AddCartItemRequest' },
+              },
+            },
+          },
+          responses: {
+            '200': { description: 'Item merged into existing line' },
+            '201': { description: 'Item added as new line' },
+            '400': { $ref: '#/components/responses/BadRequest' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '409': { description: 'Version conflict or idempotency conflict' },
+            '422': { description: 'SKU unavailable or limit exceeded' },
+          },
+        },
+      },
+      '/api/v1/cart/items/{itemId}': {
+        patch: {
+          tags: ['Cart'],
+          summary: 'Update item quantity (optimistic concurrency via expectedVersion)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'itemId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+            { $ref: '#/components/parameters/IdempotencyKeyHeader' },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/UpdateCartItemRequest' },
+              },
+            },
+          },
+          responses: {
+            '200': { description: 'Quantity updated' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '404': { $ref: '#/components/responses/NotFound' },
+            '409': { description: 'Stale version (CART_STALE)' },
+          },
+        },
+        delete: {
+          tags: ['Cart'],
+          summary: 'Remove item from cart',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'itemId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+            { $ref: '#/components/parameters/IdempotencyKeyHeader' },
+          ],
+          responses: {
+            '200': { description: 'Item removed' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '404': { $ref: '#/components/responses/NotFound' },
+          },
+        },
+      },
+      '/api/v1/wishlist': {
+        get: {
+          tags: ['Wishlist'],
+          summary: 'List wishlist (cursor paginated, graceful unavailable states)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { $ref: '#/components/parameters/LimitParam' },
+            { $ref: '#/components/parameters/CursorParam' },
+          ],
+          responses: {
+            '200': { description: 'Wishlist page' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/wishlist/items': {
+        post: {
+          tags: ['Wishlist'],
+          summary: 'Add wishlist item (duplicate returns 200 existing, no 409)',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AddWishlistItemRequest' },
+              },
+            },
+          },
+          responses: {
+            '200': { description: 'Already saved (duplicate)' },
+            '201': { description: 'Wishlist item added' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/wishlist/items/{itemId}': {
+        delete: {
+          tags: ['Wishlist'],
+          summary: 'Remove wishlist item',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'itemId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          responses: {
+            '204': { description: 'Wishlist item removed' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '404': { $ref: '#/components/responses/NotFound' },
+          },
+        },
+      },
+      '/api/v1/wishlist/check': {
+        get: {
+          tags: ['Wishlist'],
+          summary: 'Check whether a product/variant is saved',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: 'productId',
+              in: 'query',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+            { name: 'variantId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            '200': { description: 'Saved status' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/inventory/availability': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Public stock availability for a SKU (safe subset only)',
+          parameters: [
+            { name: 'sku', in: 'query', required: true, schema: { type: 'string' } },
+            { $ref: '#/components/parameters/CorrelationIdHeader' },
+          ],
+          responses: {
+            '200': {
+              description: 'Availability status',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/InventoryAvailability' },
+                },
+              },
+            },
+            '404': { $ref: '#/components/responses/NotFound' },
+            '429': { $ref: '#/components/responses/RateLimited' },
+          },
+        },
+      },
+      '/api/v1/inventory': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'List inventory records (staff/admin, cursor paginated)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'sku', in: 'query', schema: { type: 'string' } },
+            {
+              name: 'status',
+              in: 'query',
+              schema: { type: 'string', enum: ['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'] },
+            },
+            { $ref: '#/components/parameters/LimitParam' },
+            { $ref: '#/components/parameters/CursorParam' },
+          ],
+          responses: {
+            '200': { description: 'Inventory page' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+          },
+        },
+        post: {
+          tags: ['Inventory'],
+          summary: 'Initialize inventory for a variant (idempotent by SKU)',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/InitInventoryRequest' },
+              },
+            },
+          },
+          responses: {
+            '200': { description: 'Inventory already exists' },
+            '201': { description: 'Inventory initialized' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+          },
+        },
+      },
+      '/api/v1/inventory/adjust': {
+        post: {
+          tags: ['Inventory'],
+          summary: 'Adjust on-hand stock by delta (never direct set)',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ $ref: '#/components/parameters/IdempotencyKeyHeader' }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/AdjustInventoryRequest' },
+              },
+            },
+          },
+          responses: {
+            '200': { description: 'Stock adjusted' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+            '404': { $ref: '#/components/responses/NotFound' },
+            '422': { description: 'Adjustment violates stock invariants' },
+          },
+        },
+      },
+      '/api/v1/inventory/{id}': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Get inventory record by id or SKU (staff/admin)',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: {
+            '200': {
+              description: 'Inventory record',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/InventoryRecord' },
+                },
+              },
+            },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+            '404': { $ref: '#/components/responses/NotFound' },
+          },
+        },
+      },
+      '/api/v1/inventory/{id}/movements': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'List immutable stock movements (staff/admin, cursor paginated)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            { $ref: '#/components/parameters/LimitParam' },
+            { $ref: '#/components/parameters/CursorParam' },
+          ],
+          responses: {
+            '200': { description: 'Movement page' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+            '404': { $ref: '#/components/responses/NotFound' },
+          },
+        },
+      },
+      '/api/v1/inventory/reservations': {
+        post: {
+          tags: ['Inventory'],
+          summary: 'Reserve stock (atomic conditional update, idempotencyKey required)',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ReserveStockRequest' },
+              },
+            },
+          },
+          responses: {
+            '201': { description: 'Stock reserved' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+            '404': { $ref: '#/components/responses/NotFound' },
+            '409': { description: 'Insufficient stock or idempotency conflict' },
+          },
+        },
+      },
+      '/api/v1/inventory/reservations/{id}': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Get reservation by id (staff/admin)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            '200': { description: 'Reservation' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+            '404': { $ref: '#/components/responses/NotFound' },
+          },
+        },
+      },
+      '/api/v1/inventory/reservations/{id}/release': {
+        post: {
+          tags: ['Inventory'],
+          summary: 'Release a reservation (idempotent)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            '200': { description: 'Reservation released (or already terminal)' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+            '404': { $ref: '#/components/responses/NotFound' },
+          },
+        },
+      },
+      '/api/v1/inventory/reservations/{id}/confirm': {
+        post: {
+          tags: ['Inventory'],
+          summary: 'Confirm a reservation: reserved stock becomes sold (idempotent)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            '200': { description: 'Reservation confirmed (or already confirmed)' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+            '404': { $ref: '#/components/responses/NotFound' },
+            '409': { description: 'Reservation is released/expired and cannot be confirmed' },
+          },
+        },
+      },
+      '/api/v1/inventory/reservations/expire-sweep': {
+        post: {
+          tags: ['Inventory'],
+          summary: 'Expire due reservations in a bounded batch (admin/system worker boundary)',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': { description: 'Sweep summary {scanned, expired, failed}' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+          },
+        },
+      },
+      '/api/v1/checkout': {
+        post: {
+          tags: ['Checkout'],
+          summary:
+            'Create checkout from cart (snapshot + validate + price, no inventory side effects)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { $ref: '#/components/parameters/IdempotencyKeyHeader' },
+            { $ref: '#/components/parameters/CorrelationIdHeader' },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/CreateCheckoutRequest' },
+              },
+            },
+          },
+          responses: {
+            '200': { description: 'Checkout replayed for Idempotency-Key' },
+            '201': { description: 'Checkout created (status priced)' },
+            '400': { $ref: '#/components/responses/BadRequest' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '409': { description: 'Idempotency conflict' },
+            '422': { description: 'Cart empty or item unavailable' },
+            '429': { $ref: '#/components/responses/RateLimited' },
+          },
+        },
+        get: {
+          tags: ['Checkout'],
+          summary: 'List own checkouts (cursor paginated)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { $ref: '#/components/parameters/LimitParam' },
+            { $ref: '#/components/parameters/CursorParam' },
+          ],
+          responses: {
+            '200': { description: 'Checkout page' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+          },
+        },
+      },
+      '/api/v1/checkout/expire-sweep': {
+        post: {
+          tags: ['Checkout'],
+          summary: 'Expire due checkouts and release reservations (admin/system worker boundary)',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': { description: 'Sweep summary {scanned, expired, failed}' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '403': { $ref: '#/components/responses/Forbidden' },
+          },
+        },
+      },
+      '/api/v1/checkout/{id}': {
+        get: {
+          tags: ['Checkout'],
+          summary: 'Get own checkout by id',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: {
+            '200': {
+              description: 'Checkout',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Checkout' },
+                },
+              },
+            },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '404': { $ref: '#/components/responses/NotFound' },
+          },
+        },
+      },
+      '/api/v1/checkout/{id}/validate': {
+        post: {
+          tags: ['Checkout'],
+          summary: 'Revalidate checkout against cart and catalog (dry run, marks failed on issues)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { $ref: '#/components/parameters/IdempotencyKeyHeader' },
+          ],
+          responses: {
+            '200': { description: 'Validation result {checkout, ok, issues}' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '404': { $ref: '#/components/responses/NotFound' },
+            '409': { description: 'Stale state or expired checkout' },
+            '422': { description: 'Validation issues found (checkout marked failed)' },
+          },
+        },
+      },
+      '/api/v1/checkout/{id}/reserve': {
+        post: {
+          tags: ['Checkout'],
+          summary: 'Reserve inventory for all lines with compensation (→ ready)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { $ref: '#/components/parameters/IdempotencyKeyHeader' },
+          ],
+          responses: {
+            '200': { description: 'Checkout ready for order' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '404': { $ref: '#/components/responses/NotFound' },
+            '409': { description: 'Insufficient stock, cart/price drift, or conflict' },
+            '422': { description: 'Item unavailable' },
+          },
+        },
+      },
+      '/api/v1/checkout/{id}/address': {
+        patch: {
+          tags: ['Checkout'],
+          summary: 'Replace address snapshot (version-guarded, priced/reserved/ready only)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { $ref: '#/components/parameters/IdempotencyKeyHeader' },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/UpdateCheckoutAddressRequest' },
+              },
+            },
+          },
+          responses: {
+            '200': { description: 'Address snapshot replaced' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '404': { $ref: '#/components/responses/NotFound' },
+            '409': { description: 'Stale version or illegal state' },
+          },
+        },
+      },
+      '/api/v1/checkout/{id}/cancel': {
+        post: {
+          tags: ['Checkout'],
+          summary: 'Cancel checkout and release reservations (idempotent)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { $ref: '#/components/parameters/IdempotencyKeyHeader' },
+          ],
+          responses: {
+            '200': { description: 'Checkout cancelled (or already cancelled)' },
+            '401': { $ref: '#/components/responses/Unauthorized' },
+            '404': { $ref: '#/components/responses/NotFound' },
+            '409': { description: 'Terminal state conflict or expired' },
+          },
+        },
+      },
     },
     components: {
       schemas: {
@@ -538,6 +1081,214 @@ export function generateOpenApiSpec(config: EnvConfig): OpenAPISpec {
             attrs: { type: 'object' },
             media: { type: 'array' },
             seo: { type: 'object' },
+          },
+        },
+        CartView: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', const: true },
+            data: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                status: { type: 'string', enum: ['active', 'converted', 'expired'] },
+                items: { type: 'array' },
+                itemCount: { type: 'integer' },
+                subtotalMinor: { type: 'integer' },
+                currency: { type: ['string', 'null'] },
+                version: { type: 'integer' },
+                hasStalePrices: { type: 'boolean' },
+                hasUnavailableItems: { type: 'boolean' },
+              },
+            },
+          },
+        },
+        AddCartItemRequest: {
+          type: 'object',
+          properties: {
+            sku: { type: 'string', description: 'Variant SKU (preferred)' },
+            productId: { type: 'string', format: 'uuid' },
+            variantId: { type: 'string', format: 'uuid' },
+            qty: { type: 'integer', minimum: 1, maximum: 50 },
+            quantity: { type: 'integer', minimum: 1, maximum: 50 },
+            expectedVersion: { type: 'integer' },
+          },
+        },
+        UpdateCartItemRequest: {
+          type: 'object',
+          required: ['expectedVersion'],
+          properties: {
+            qty: { type: 'integer', minimum: 1, maximum: 50 },
+            quantity: { type: 'integer', minimum: 1, maximum: 50 },
+            expectedVersion: { type: 'integer', description: 'Optimistic concurrency version' },
+          },
+        },
+        AddWishlistItemRequest: {
+          type: 'object',
+          properties: {
+            sku: { type: 'string' },
+            productId: { type: 'string', format: 'uuid' },
+            variantId: { type: 'string', format: 'uuid' },
+          },
+        },
+        InventoryAvailability: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', const: true },
+            data: {
+              type: 'object',
+              required: ['sku', 'available', 'status'],
+              properties: {
+                sku: { type: 'string' },
+                available: { type: 'boolean' },
+                status: { type: 'string', enum: ['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'] },
+              },
+            },
+          },
+        },
+        InventoryRecord: {
+          type: 'object',
+          required: ['id', 'sku', 'onHand', 'reserved', 'sold', 'available', 'status'],
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            sku: { type: 'string' },
+            productId: { type: 'string', format: 'uuid' },
+            variantId: { type: 'string', format: 'uuid' },
+            onHand: { type: 'integer', minimum: 0 },
+            reserved: { type: 'integer', minimum: 0 },
+            sold: { type: 'integer', minimum: 0 },
+            available: { type: 'integer', minimum: 0 },
+            lowStockThreshold: { type: 'integer', minimum: 0 },
+            status: { type: 'string', enum: ['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'] },
+            version: { type: 'integer' },
+          },
+        },
+        InitInventoryRequest: {
+          type: 'object',
+          properties: {
+            sku: { type: 'string' },
+            productId: { type: 'string', format: 'uuid' },
+            variantId: { type: 'string', format: 'uuid' },
+            initialOnHand: { type: 'integer', minimum: 0, maximum: 1000000 },
+            lowStockThreshold: { type: 'integer', minimum: 0, maximum: 1000000 },
+          },
+        },
+        AdjustInventoryRequest: {
+          type: 'object',
+          required: ['delta', 'reason'],
+          properties: {
+            sku: { type: 'string' },
+            inventoryId: { type: 'string', format: 'uuid' },
+            delta: { type: 'integer', minimum: -1000000, maximum: 1000000 },
+            reason: {
+              type: 'string',
+              enum: [
+                'RECEIPT',
+                'DAMAGE',
+                'LOSS',
+                'RETURN',
+                'TRANSFER_IN',
+                'TRANSFER_OUT',
+                'CYCLE_COUNT',
+                'MANUAL_CORRECTION',
+              ],
+            },
+            referenceType: { type: 'string' },
+            referenceId: { type: 'string' },
+            idempotencyKey: { type: 'string' },
+          },
+        },
+        ReserveStockRequest: {
+          type: 'object',
+          required: ['sku', 'quantity', 'referenceType', 'referenceId', 'idempotencyKey'],
+          properties: {
+            sku: { type: 'string' },
+            quantity: { type: 'integer', minimum: 1, maximum: 1000 },
+            referenceType: { type: 'string' },
+            referenceId: { type: 'string' },
+            idempotencyKey: { type: 'string', format: 'uuid' },
+            ttlSeconds: { type: 'integer', minimum: 60, maximum: 3600 },
+          },
+        },
+        CheckoutAddress: {
+          type: 'object',
+          required: ['fullName', 'line1', 'city', 'region', 'postalCode', 'country'],
+          properties: {
+            fullName: { type: 'string', maxLength: 120 },
+            phone: { type: ['string', 'null'], maxLength: 32 },
+            line1: { type: 'string', maxLength: 200 },
+            line2: { type: ['string', 'null'], maxLength: 200 },
+            city: { type: 'string', maxLength: 120 },
+            region: { type: 'string', maxLength: 120 },
+            postalCode: { type: 'string', maxLength: 32 },
+            country: { type: 'string', minLength: 2, maxLength: 2 },
+          },
+        },
+        CreateCheckoutRequest: {
+          type: 'object',
+          required: ['shippingAddress'],
+          properties: {
+            shippingAddress: { $ref: '#/components/schemas/CheckoutAddress' },
+            billingAddress: { $ref: '#/components/schemas/CheckoutAddress' },
+            couponCode: { type: ['string', 'null'], maxLength: 64 },
+          },
+        },
+        UpdateCheckoutAddressRequest: {
+          type: 'object',
+          required: ['shippingAddress', 'expectedVersion'],
+          properties: {
+            shippingAddress: { $ref: '#/components/schemas/CheckoutAddress' },
+            billingAddress: { $ref: '#/components/schemas/CheckoutAddress' },
+            expectedVersion: { type: 'integer', minimum: 0 },
+          },
+        },
+        Checkout: {
+          type: 'object',
+          required: ['id', 'status', 'items', 'pricing', 'currency', 'version'],
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            status: {
+              type: 'string',
+              enum: ['priced', 'reserved', 'ready', 'completed', 'failed', 'expired', 'cancelled'],
+            },
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  productId: { type: 'string', format: 'uuid' },
+                  variantId: { type: 'string', format: 'uuid' },
+                  sku: { type: 'string' },
+                  title: { type: 'string' },
+                  quantity: { type: 'integer' },
+                  unitMinor: { type: 'integer' },
+                  currency: { type: 'string' },
+                  lineTotalMinor: { type: 'integer' },
+                },
+              },
+            },
+            pricing: {
+              type: 'object',
+              properties: {
+                subtotalMinor: { type: 'integer' },
+                discountMinor: { type: 'integer' },
+                shippingMinor: { type: 'integer' },
+                taxMinor: { type: 'integer' },
+                grandTotalMinor: { type: 'integer' },
+                currency: { type: 'string' },
+                couponCode: { type: ['string', 'null'] },
+              },
+            },
+            currency: { type: 'string' },
+            shippingAddress: { $ref: '#/components/schemas/CheckoutAddress' },
+            billingAddress: { $ref: '#/components/schemas/CheckoutAddress' },
+            reservations: { type: 'array' },
+            cartId: { type: 'string', format: 'uuid' },
+            cartVersion: { type: 'integer' },
+            version: { type: 'integer' },
+            expiresAt: { type: 'string', format: 'date-time' },
+            failReason: { type: ['string', 'null'] },
+            orderId: { type: ['string', 'null'] },
           },
         },
         UserProfile: {
@@ -762,7 +1513,8 @@ export function generateOpenApiSpec(config: EnvConfig): OpenAPISpec {
       { name: 'Users', description: 'User management' },
       { name: 'Catalog', description: 'Products, categories, brands' },
       { name: 'Search', description: 'Product search, filtering, suggestions' },
-      { name: 'Cart', description: 'Shopping cart' },
+      { name: 'Cart', description: 'Shopping cart (display snapshots, optimistic concurrency)' },
+      { name: 'Wishlist', description: 'Saved items for later' },
       { name: 'Checkout', description: 'Checkout process' },
       { name: 'Orders', description: 'Order management' },
       { name: 'Payments', description: 'Payment processing' },

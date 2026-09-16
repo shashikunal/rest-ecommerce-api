@@ -3,11 +3,11 @@ import type { Logger } from '@config/logger';
 import type { Router, RequestHandler } from 'express';
 
 import { MediaService } from './application/MediaService';
-import { ProductService } from './application/ProductService';
 import { ProductSearchService } from './application/ProductSearchService';
+import { ProductService } from './application/ProductService';
 import { TaxonomyService } from './application/TaxonomyService';
 import { VariantService } from './application/VariantService';
-import { NullInventoryLookup } from './domain/ports/CatalogPorts';
+import { NullInventoryLookup, type InventoryLookup } from './domain/ports/CatalogPorts';
 import { RedisCatalogCache } from './infrastructure/cache/redis-catalog-cache';
 import { MongoOutboxRepository } from './infrastructure/database/outbox.repository';
 import { MongoProductRepository } from './infrastructure/database/product.repository';
@@ -29,6 +29,7 @@ export interface CatalogSharedDeps {
   logger: Logger;
   authMiddleware: RequestHandler;
   config: EnvConfig;
+  inventoryLookup?: InventoryLookup;
 }
 
 export interface CatalogDependencies {
@@ -49,7 +50,7 @@ export function createCatalogDependencies(shared: CatalogSharedDeps): CatalogDep
   const brandRepository = new MongoBrandRepository(shared.logger);
   const outboxRepository = new MongoOutboxRepository(shared.logger);
   const events = new OutboxCatalogEventPublisher(outboxRepository, shared.logger);
-  const inventory = new NullInventoryLookup();
+  const inventory = shared.inventoryLookup ?? new NullInventoryLookup();
   const cache = new RedisCatalogCache(shared.logger);
   const storage = new LocalDevMediaStorage(shared.config.API_BASE_URL, shared.logger);
 
